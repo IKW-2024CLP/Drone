@@ -1,0 +1,6 @@
+﻿dronekit==2.9.2
+future==1.0.0
+lxml==5.2.1
+monotonic==1.6
+pymavlink==2.4.41
+pyserial==3.5
