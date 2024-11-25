@@ -1,0 +1,22 @@
+*.log
+*.pot
+*.pyc
+__pycache__
+media
+
+.idea/
+__pycache__/
+*.log
+
+# Environments
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+.vscode
+.DS_Store
+*.swp
