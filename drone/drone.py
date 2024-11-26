@@ -8,15 +8,11 @@ from dronekit import *
 class drone(Thread):
     connection = "172.30.208.1:14550"
     hearbeat = 0.0
-    mission_altitude = 10
     pitch = 0.0
     yaw = 0.0
     roll = 0.0
     lat = 0.0
     lon = 0.0
-
-    point1 = LocationGlobalRelative(-35.36284032, 149.16559905, mission_altitude)
-    point2 = LocationGlobalRelative(-35.36248006, 149.16493783, mission_altitude)
 
     def __init__(self, connection=connection):
         try:
@@ -86,18 +82,16 @@ class drone(Thread):
             time.sleep(1)
 
     def mission(self):
-        print("mission 1 start")
-        self.vehicle.simple_goto(self.point1)
-        time.sleep(10)
-        print("mission 2 start")
-        self.vehicle.simple_goto(self.point2)
-        time.sleep(10)
-        print("RTL start")
-        self.vehicle.mode = VehicleMode("RTL")
+        print("No mission")
 
 # from multiprocessing import Process
 
 if __name__ == "__main__":
+    # Position for test flight #. 1
+    point1 = LocationGlobalRelative(-35.36284032, 149.16559905, 10)
+    # Position for test flight #. 2
+    point2 = LocationGlobalRelative(-35.36248006, 149.16493783, 10)
+
     vehicle = drone("172.30.208.1:14550")
     # vehicle.start()
 
@@ -105,6 +99,16 @@ if __name__ == "__main__":
     thr = Thread(target=vehicle.show)
     thr.start()
     thr.join()
+
+    print("mission 1 start")
+    vehicle.vehicle.simple_goto(vehicle.point1)
+    time.sleep(10)
+    print("mission 2 start")
+    vehicle.vehicle.simple_goto(vehicle.point2)
+    time.sleep(10)
+    print("RTL start")
+    vehicle.vehicle.mode = VehicleMode("RTL")
+
     # while True:
     #     try:
     #         vehicle.update_param()
