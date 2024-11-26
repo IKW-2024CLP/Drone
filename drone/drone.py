@@ -1,28 +1,36 @@
+# -*- coding: utf-8 -*-
+
 import time
 from threading import Thread
+import warnings
 
 import sys
 
-import dronekit
 from dronekit import *
+
 class drone(Thread):
-    connection = "172.30.208.1:14550"
+    # 연결시간
     hearbeat = 0.0
+    # 자세정보
     pitch = 0.0
     yaw = 0.0
     roll = 0.0
+    # 위치정보
     lat = 0.0
     lon = 0.0
+    altitude = 0.0
 
-    def __init__(self, connection=connection):
+    def __init__(self, connection="172.30.208.1:14550"):
+        # super().__init__() #TODO: 수퍼 클래스 호출해도 문제없나 테스트하기
+
         try:
-            self.vehicle = connect(connection,wait_ready=True)
+            self.vehicle = connect(connection, wait_ready=True)
             print("Connected")
             print("-- System status --\n %s" % self.vehicle.system_status.state)
             print("Attitude %s" % self.vehicle.attitude)
 
         except Exception as e:
-            exit("error occured while connecting to vehicle :\n %s" % e )
+            exit("error occured while connecting to vehicle :\n %s" % e)
 
     def takeoff_mission(self):
         while not self.vehicle.is_armable:
@@ -39,16 +47,29 @@ class drone(Thread):
         self.lon = self.vehicle.location.global_frame.lon
 
     def get_gps(self):
+        """
+        Get GPS coordinates
+        :return: GPS(lat,lon)
+        """
         return self.lat, self.lon
 
-    def takeoff(self,altitude):
-        self.mission_altitude = altitude
+    def takeoff(self, altitude) -> bool:
+        """
+        :COMMAND: TAKEOFF to an altitude
+        :param altitude: target altitude
+        :return: True or False by arm and reach target altitude
+        1. Try arm and try to reach the target altitude, 아밍 5회 실패시 임무실패.
+        """
         fail_count = 0
-        print("Arming")
+        print("Try Arming")
+
         while not self.vehicle.is_armable:
+            # Fail after 5 attempts
             if fail_count > 5:
-                sys.exit("Cannot arm the drone!!")
-            print("Waiting for armable")
+                raise warnings.warn("Cannot arm the drone!!", RuntimeWarning)
+                return False  # FIXME: RETURN으로 해결하기. sys_exit을 여기서 호추랗는건 좀 위험해. (ex. 뒤늦게 아밍 걸리면..?)
+
+            print("Waiting for armable", fail_count + 1)
             fail_count += 1
             time.sleep(1)
 
@@ -73,7 +94,7 @@ class drone(Thread):
                 break
             time.sleep(1)
 
-        vehicle.mission()
+        return True
 
     def show(self):
         while True:
@@ -84,8 +105,9 @@ class drone(Thread):
     def mission(self):
         print("No mission")
 
-# from multiprocessing import Process
 
+# from multiprocessing import Process
+# TODO: Test this module
 if __name__ == "__main__":
     # Position for test flight #. 1
     point1 = LocationGlobalRelative(-35.36284032, 149.16559905, 10)
