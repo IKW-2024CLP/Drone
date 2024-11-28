@@ -1,49 +1,35 @@
-# -*- coding: utf-8 -*-
-
-import sys
 import time
 from threading import Thread
-from typing import Tuple
 
+import sys
+
+import dronekit
 from dronekit import *
-from pymavlink import mavutil
 class drone(Thread):
-    # Drone heartbeat
+    connection = "172.30.208.1:14550"
     hearbeat = 0.0
-    # Drone attitude
     pitch = 0.0
     yaw = 0.0
     roll = 0.0
-    # Drone position
-    altitude = 0.0
     lat = 0.0
     lon = 0.0
-    # Mission List
-    mission = []
-    def __init__(self, connection = "172.30.208.1:14550"):
-        # Drone connection
+
+    def __init__(self, connection=connection):
         try:
             self.vehicle = connect(connection,wait_ready=True)
-            if not (self.vehicle):
-                exit("Can not connect to Vehicle\nPlease check your connection.")
-            else:
-                print("Connected\n-- System status --\n %s" % self.vehicle.system_status.state)
-                print("Attitude [%s]" % self.vehicle.attitude)
+            print("Connected")
+            print("-- System status --\n %s" % self.vehicle.system_status.state)
+            print("Attitude %s" % self.vehicle.attitude)
+
         except Exception as e:
             exit("error occured while connecting to vehicle :\n %s" % e )
 
-    def run(self):
-        """
-        It must be execute every time for drone system.
-        """
-        # Update drone data.
-        self.update_data()
+    def takeoff_mission(self):
+        while not self.vehicle.is_armable:
+            print("vehicle arming")
+            time.sleep(1)
 
-    def update_data(self):
-        """
-        Updates the data from the Drone.
-        :return: No Returns...
-        """
+    def update_param(self):
         self.hearbeat = self.vehicle.last_heartbeat
         self.pitch = self.vehicle.attitude.pitch * 180 / math.pi
         self.yaw = self.vehicle.attitude.yaw * 180 / math.pi
@@ -52,60 +38,51 @@ class drone(Thread):
         self.lat = self.vehicle.location.global_frame.lat
         self.lon = self.vehicle.location.global_frame.lon
 
-    def get_gps(self) -> Tuple[float, float]:
-        """
-        Gets the GPS data.
-        :return: latitude, longitude
-        """
+    def get_gps(self):
         return self.lat, self.lon
 
-    def takeoff(self,altitude) -> bool:
-        """
-        Check the system and TAKE OFF if system's good.
-        :param altitude:
-        :return: True or False
-        """
+    def takeoff(self,altitude):
+        self.mission_altitude = altitude
         fail_count = 0
-
+        print("Arming")
         while not self.vehicle.is_armable:
-            print(" Waiting for vehicle to arm...")
+            if fail_count > 5:
+                sys.exit("Cannot arm the drone!!")
+            print("Waiting for armable")
+            fail_count += 1
             time.sleep(1)
 
+        self.vehicle.mode = VehicleMode("GUIDED")
+        self.vehicle.armed = True
+
+        while not self.vehicle.armed:
+            if fail_count > 5:
+                sys.exit("Cannot arm the drone!!")
+            print("Waiting for armable")
+            fail_count += 1
+            time.sleep(1)
+
+        print("Taking off")
+        self.vehicle.simple_takeoff(altitude)
+
         while True:
-            print(" Altitude: ", self.altitude)
-            if self.altitude >= altitude * 0.95:  # Trigger just below target alt.
+            print(" Altitude: ", self.vehicle.location.global_relative_frame.alt)
+            # Break and return from function just below target altitude.
+            if self.vehicle.location.global_relative_frame.alt >= altitude * 0.95:
                 print("Reached target altitude")
                 break
             time.sleep(1)
-        return True
 
-    def arm_check(self,count = 5):
-        pass
+        vehicle.mission()
 
-    def show_debug(self):
+    def show(self):
         while True:
             self.update_param()
             print(f"lat {self.get_gps()[0]}, lng {self.get_gps()[1]} , alt : {self.altitude}")
             time.sleep(1)
 
-    def RTL(self):
-        """
-        Run Mode RTL
-        :return:
-        """
-        print("RTL start")
-        self.mode = VehicleMode("RTL")
-
     def mission(self):
-        """
-        Run the drone Mission
-        :return:
-        """
-        if not self.mission:
-            print("No mission, Return to Home(Launch)")
-
-    def update_mission(self,mission):
-        pass
+        print("No mission")
 
 # from multiprocessing import Process
 
@@ -119,17 +96,19 @@ if __name__ == "__main__":
     # vehicle.start()
 
     vehicle.takeoff(10)
-    thr = Thread(target=vehicle.show_debug)
+    thr = Thread(target=vehicle.show)
     thr.start()
     thr.join()
 
     print("mission 1 start")
-    vehicle.vehicle.simple_goto(point1)
+    vehicle.vehicle.simple_goto(vehicle.point1)
     time.sleep(10)
     print("mission 2 start")
-    vehicle.vehicle.simple_goto(point2)
+    vehicle.vehicle.simple_goto(vehicle.point2)
     time.sleep(10)
-    vehicle.RTL()
+    print("RTL start")
+    vehicle.vehicle.mode = VehicleMode("RTL")
+
     # while True:
     #     try:
     #         vehicle.update_param()
