@@ -9,5 +9,7 @@ altitude 고도를 목표로 이동.
 이륙 위치로 복귀 후 착륙 (긴급상황시에도 사용가능.)
 
 ## update_mission( mission : position() )
+LocationGlobalRelative(-35.36284032, 149.16559905, 10) 함수의 return값이 인자로 들어감.
+
 드론 임무 추가
 *-* CLP 임무상 이동명령만 필요하기에 position *-*

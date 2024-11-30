@@ -18,8 +18,10 @@ class drone(Thread):
     altitude = 0.0
     lat = 0.0
     lon = 0.0
-    # Mission List
+    # Missions
+    current_mission = 0
     mission = []
+
     def __init__(self, connection = "172.30.208.1:14550"):
         # Drone connection
         try:
@@ -104,8 +106,11 @@ class drone(Thread):
         if not self.mission:
             print("No mission, Return to Home(Launch)")
 
-    def update_mission(self,mission):
-        pass
+    def update_mission(self,*locs : LocationGlobalRelative):
+        """
+        Update the mission with cordinates
+        """
+        self.mission.extend(locs)
 
 # from multiprocessing import Process
 
@@ -116,6 +121,7 @@ if __name__ == "__main__":
     point2 = LocationGlobalRelative(-35.36248006, 149.16493783, 10)
 
     vehicle = drone("172.30.208.1:14550")
+    vehicle.update_mission(point1)
     # vehicle.start()
 
     vehicle.takeoff(10)
