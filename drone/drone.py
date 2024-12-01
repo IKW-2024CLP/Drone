@@ -4,6 +4,8 @@ from threading import Thread
 from typing import Tuple
 
 from dronekit import *
+
+
 # from pymavlink import mavutil
 
 class drone(Thread):
@@ -70,7 +72,7 @@ class drone(Thread):
         """
         return self.lat, self.lon
 
-    def takeoff(self, altitude) -> bool:
+    def takeoff(self, altitude=10.0) -> bool:
         """
         Check the system and TAKE OFF if system's good.
         :param altitude:
@@ -88,38 +90,47 @@ class drone(Thread):
 
         print("Arming motors")
         self.vehicle.mode = VehicleMode("GUIDED")
+        self.vehicle.arm()
+        self.vehicle.simple_takeoff(altitude)
 
         while True:
-            print(" Altitude: ", self.altitude)
-            if self.altitude >= altitude * 0.95:  # Trigger just below target alt.
+            print(" Takeoff Altitude: ", self.altitude)
+            if self.altitude >= altitude * 0.95:
                 print("Reached target altitude")
                 break
             time.sleep(1)
+        # FIXME: 궁금한 미친짓
+        # self.vehicle.armed = False
         return True
 
     def show_debug(self) -> None:
-        self.update_data()
         print(f"lat {self.get_gps()[0]}, lng {self.get_gps()[1]} , alt : {self.altitude}")
 
-    def RTL(self) -> bool:
+    def RTL(self,reason=None) -> bool:
         """
         Run Mode RTL
         :return:
         """
+        self.vehicle.mode = VehicleMode("RTL")
         print("RTL start")
-        self.mode = VehicleMode("RTL")
-        # FIXME:
-        #   TODO: 시뮬레이션에서 착륙인지여부 검증하기!!!!!!!!
-        while not self.vehicle.location.global_relative_frame.alt <= 0:
-            print(" Altitude: ", self.altitude)
+
+        while not self.vehicle.location.global_relative_frame.alt <= 0.01:
+            if reason is not None:
+                print("RTL {%s} Altitude: %f " % (reason, self.altitude))
+            else:
+                print("RTL Altitude:", self.altitude)
+
         print("Done to Land, Disarming.")
         self.vehicle.armed = False
         if not self.vehicle.armed:
-            return True
-        # print("Disconnect the vehicle.")
-        # self.vehicle.close()
+            return False
+        print("Disconnect the vehicle.")
+        self.vehicle.close()
 
-    def mission(self, start_altitude=10.0) -> bool:
+    def LAND(self):
+        self.vehicle.mode = VehicleMode("LAND")
+
+    def mission(self, start_altitude=altitude) -> bool:
         """
         Run the drone Mission
         :return:
@@ -127,18 +138,29 @@ class drone(Thread):
         # If the mission is empty
         if not self.mission:
             print("No mission, Return to Home(Launch)")
-        # If mission isn't empty
+            self.RTL(reason="No mission")
+
+        # If mission doesn't empty
         else:
             print("Mission start")
-            self.takeoff(start_altitude)
-            self.RTL()
+
+            # TODO: 이륙 여부 검증 후 이륙
+            # FIXME: 이륙도 못했는데 바로 임무수행 들어감...
+            # First, fly the drone!
+            if self.altitude < 1.0:
+                self.takeoff(start_altitude)
+
+            for point in self.missions:
+                self.goto(point.lat, point.lon)
+            self.RTL(reason="End Mission")
             return True
 
-    def update_mission(self, *locs: LocationGlobalRelative) -> None:
+    def update_mission(self, *locs: LocationGlobalRelative) -> bool:
         """
         Update the mission with LocationGlobalRelative data
         """
         self.missions.extend(locs)
+        return True
 
     def get_location_metres(self, d_north, d_east):
         """
@@ -171,7 +193,7 @@ class drone(Thread):
 
         return targetlocation
 
-    def get_distance_metres(self,aLocation1, aLocation2):
+    def get_distance_metres(self, aLocation1, aLocation2):
         """
         Returns the ground distance in metres between two LocationGlobal objects.
 
@@ -197,46 +219,34 @@ class drone(Thread):
         currentLocation = self.vehicle.location.global_relative_frame
         targetLocation = self.get_location_metres(d_north, d_east)
         targetDistance = self.get_distance_metres(currentLocation, targetLocation)
-        self.vehicle.gotoFunction(targetLocation)
+        self.vehicle.simple_goto(targetLocation)
 
         # IF not GUIDED mode...
-        if not vehicle.mode.name == "GUIDED":
+        if not self.vehicle.mode.name == "GUIDED":
             return False
         # Must be set GUIDED
-        while vehicle.mode.name == "GUIDED":
+        while self.vehicle.mode.name == "GUIDED":
             remainingDistance = self.get_distance_metres(self.vehicle.location.global_relative_frame, targetLocation)
             print("Distance to target: ", remainingDistance)
+            self.show_debug()
             if remainingDistance <= targetDistance * 0.01:
                 print("Reached target")
                 return True
+
 
 # from multiprocessing import Process
 
 if __name__ == "__main__":
     # Position for test flight #. 1
-    point1 = LocationGlobalRelative(-35.36284032, 149.16559905, 10)
-    # Position for test flight #. 2
-    point2 = LocationGlobalRelative(-35.36248006, 149.16493783, 10)
-
     vehicle = drone("172.30.208.1:14550")
-    vehicle.update_mission(point1)
-    # vehicle.start()
+    try:
+        point1 = LocationGlobalRelative(-35.36325300, 149.16530739, 10)
+        point2 = LocationGlobalRelative(-35.36320786, 149.16526434, 10)
 
-    vehicle.takeoff(10)
-    thr = Thread(target=vehicle.show_debug)
-    thr.start()
-    thr.join()
-
-    print("mission 1 start")
-    vehicle.vehicle.simple_goto(point1)
-    time.sleep(10)
-    print("mission 2 start")
-    vehicle.vehicle.simple_goto(point2)
-    time.sleep(10)
-    vehicle.RTL()
-    # while True:
-    #     try:
-    #         vehicle.update_param()
-    #         print(f"lat {vehicle.get_gps()[0]}, lng {vehicle.get_gps()[1]} , alt : {vehicle.altitude}")
-    #     except KeyboardInterrupt:
-    #         exit("interrupted")
+        vehicle.update_mission(point1, point2)
+        # print(vehicle.takeoff(10))
+        print("Done the mission"if vehicle.mission() else "Done mission failed")
+    except KeyboardInterrupt:
+        if 'vehicle' in locals() and vehicle is not None:
+            vehicle.RTL()
+        raise ConnectionError("Please do not close the connection like this way..")
