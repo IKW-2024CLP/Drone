@@ -10,6 +10,7 @@ from pymavlink import mavutil
 class drone(Thread):
     # Drone heartbeat
     hearbeat = 0.0
+    update_interval = 1  # Update period
     # Drone attitude
     pitch = 0.0
     yaw = 0.0
@@ -22,28 +23,37 @@ class drone(Thread):
     current_mission = 0
     mission = []
 
-    def __init__(self, connection = "172.30.208.1:14550"):
-        # Drone connection
+    def __init__(self, connection="172.30.208.1:14550"):
+        # Drone connection start
+        super().__init__()
         try:
             self.vehicle = connect(connection,wait_ready=True)
+
+            # If not connected
             if not (self.vehicle):
                 exit("Can not connect to Vehicle\nPlease check your connection.")
+
+            # If connected well!
             else:
+
+                self.thread = Thread(target=self.run, daemon=True)
+                self.thread.start()
+
                 print("Connected\n-- System status --\n %s" % self.vehicle.system_status.state)
                 print("Attitude [%s]" % self.vehicle.attitude)
+
         except Exception as e:
-            exit("error occured while connecting to vehicle :\n %s" % e )
+            exit("error occured while connecting to vehicle :\n %s" % e)
 
     def run(self):
-        """
-        It must be execute every time for drone system.
-        """
-        # Update drone data.
-        self.update_data()
+        while True:
+            # Update drone data.
+            self.update_data()
+            time.sleep(self.update_interval)
 
     def update_data(self):
         """
-        Updates the data from the Drone.
+        Updates the data (e.g. attitude, position) from the Drone.
         :return: No Returns...
         """
         self.hearbeat = self.vehicle.last_heartbeat
@@ -70,7 +80,8 @@ class drone(Thread):
         fail_count = 0
 
         while not self.vehicle.is_armable:
-            print(" Waiting for vehicle to arm...")
+            fail_count += 1
+            print(" Waiting for vehicle to arm... count %d" % fail_count)
             time.sleep(1)
 
         while True:
