@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-
+import time
 from threading import Thread
 from typing import Tuple
 
@@ -24,6 +24,9 @@ class drone(Thread):
     current_mission = 0
     missions = []
 
+    def __del__(self):
+        if 'vehicle' in locals() or self is not None:
+            vehicle.RTL()
     def __init__(self, connection="172.30.208.1:14550"):
         # Drone connection start
         super().__init__()
@@ -47,8 +50,11 @@ class drone(Thread):
             exit("error occured while connecting to vehicle :\n %s" % e)
 
     def run(self) -> None:
+        """
+        Run every second with Thread
+        :return:
+        """
         while True:
-            # Update drone data.
             self.update_data()
             time.sleep(self.update_interval)
 
@@ -112,9 +118,12 @@ class drone(Thread):
         :return:
         """
         self.vehicle.mode = VehicleMode("RTL")
-        print("RTL start")
+        print("RTL start Reason :", str(reason))
 
         while not self.vehicle.location.global_relative_frame.alt <= 0.01:
+            # Sometime RTL mode disabled by unknown drone issue.
+            if not self.vehicle.mode == VehicleMode("RTL"):
+                self.vehicle.mode = VehicleMode("RTL")
             if reason is not None:
                 print("RTL {%s} Altitude: %f " % (reason, self.altitude))
             else:
@@ -136,11 +145,11 @@ class drone(Thread):
         :return:
         """
         # If the mission is empty
-        if not self.mission:
+        if not self.missions:
             print("No mission, Return to Home(Launch)")
             self.RTL(reason="No mission")
-
-        # If mission doesn't empty
+            return False
+        # If drone has mission.
         else:
             print("Mission start")
 
@@ -148,10 +157,16 @@ class drone(Thread):
             # FIXME: 이륙도 못했는데 바로 임무수행 들어감...
             # First, fly the drone!
             if self.altitude < 1.0:
-                self.takeoff(start_altitude)
+                print("Take off for mission.")
+                if self.takeoff(start_altitude):
+                    print("Take off done, Mission start")
 
             for point in self.missions:
-                self.goto(point.lat, point.lon)
+                while not self.get_distance_metres(point) < 0.8:
+                    print("Distance metres : ", self.get_distance_metres(point))
+                    self.vehicle.simple_goto(point)
+                # self.goto(point.lat, point.lon)
+
             self.RTL(reason="End Mission")
             return True
 
@@ -185,15 +200,17 @@ class drone(Thread):
         newlat = self.lat + (dLat * 180 / math.pi)
         newlon = self.lon + (dLon * 180 / math.pi)
         if type(self.vehicle.location.global_relative_frame) is LocationGlobal:
+            print("lg")
             targetlocation = LocationGlobal(newlat, newlon, self.altitude)
         elif type(self.vehicle.location.global_relative_frame) is LocationGlobalRelative:
+            print("lgr")
             targetlocation = LocationGlobalRelative(newlat, newlon, self.altitude)
         else:
             raise Exception("Invalid Location object passed")
 
         return targetlocation
 
-    def get_distance_metres(self, aLocation1, aLocation2):
+    def get_distance_metres(self, aLocation2):
         """
         Returns the ground distance in metres between two LocationGlobal objects.
 
@@ -201,8 +218,8 @@ class drone(Thread):
         earth's poles. It comes from the ArduPilot test code:
         https://github.com/diydrones/ardupilot/blob/master/Tools/autotest/common.py
         """
-        dlat = aLocation2.lat - aLocation1.lat
-        dlong = aLocation2.lon - aLocation1.lon
+        dlat = aLocation2.lat - self.lat
+        dlong = aLocation2.lon - self.lon
         return math.sqrt((dlat * dlat) + (dlong * dlong)) * 1.113195e5
 
     def goto(self, d_north, d_east) -> bool:
@@ -216,9 +233,8 @@ class drone(Thread):
         The method reports the distance to target every two seconds.
         """
 
-        currentLocation = self.vehicle.location.global_relative_frame
         targetLocation = self.get_location_metres(d_north, d_east)
-        targetDistance = self.get_distance_metres(currentLocation, targetLocation)
+        targetDistance = self.get_distance_metres(targetLocation)
         self.vehicle.simple_goto(targetLocation)
 
         # IF not GUIDED mode...
@@ -226,9 +242,8 @@ class drone(Thread):
             return False
         # Must be set GUIDED
         while self.vehicle.mode.name == "GUIDED":
-            remainingDistance = self.get_distance_metres(self.vehicle.location.global_relative_frame, targetLocation)
+            remainingDistance = self.get_distance_metres(targetLocation)
             print("Distance to target: ", remainingDistance)
-            self.show_debug()
             if remainingDistance <= targetDistance * 0.01:
                 print("Reached target")
                 return True
@@ -240,12 +255,18 @@ if __name__ == "__main__":
     # Position for test flight #. 1
     vehicle = drone("172.30.208.1:14550")
     try:
-        point1 = LocationGlobalRelative(-35.36325300, 149.16530739, 10)
-        point2 = LocationGlobalRelative(-35.36320786, 149.16526434, 10)
+        point1 = LocationGlobalRelative(-35.36316902, 149.16529954, 10)
+        point2 = LocationGlobalRelative(-35.36330254, 149.16513464, 10)
+        point3 = LocationGlobalRelative(-35.36334282, 149.16522457, 5)
 
-        vehicle.update_mission(point1, point2)
-        # print(vehicle.takeoff(10))
-        print("Done the mission"if vehicle.mission() else "Done mission failed")
+        # Update the Mission
+        vehicle.update_mission(point1, point2,point3)
+
+        print(vehicle.takeoff(10))
+        if vehicle.mission():
+            print("Mission Complete")
+        else:
+            exit("Mission failed")
     except KeyboardInterrupt:
         if 'vehicle' in locals() and vehicle is not None:
             vehicle.RTL()
