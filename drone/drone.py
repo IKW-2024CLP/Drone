@@ -70,6 +70,12 @@ class drone(Thread):
         self.altitude = self.vehicle.location.global_relative_frame.alt
         self.lat = self.vehicle.location.global_frame.lat
         self.lon = self.vehicle.location.global_frame.lon
+    
+    def move_velo(self,x,t,z):
+        """
+        Move the drone based velocity
+        """
+        pass
 
     def get_gps(self) -> Tuple[float, float]:
         """
