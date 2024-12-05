@@ -1,5 +1,4 @@
 # -*- coding: utf-8 -*-
-import time
 from threading import Thread
 from typing import Tuple
 
@@ -24,9 +23,6 @@ class drone(Thread):
     current_mission = 0
     missions = []
 
-    def __del__(self):
-        if 'vehicle' in locals() or self is not None:
-            vehicle.RTL()
     def __init__(self, connection="172.30.208.1:14550"):
         # Drone connection start
         super().__init__()
@@ -34,13 +30,13 @@ class drone(Thread):
             self.vehicle = connect(connection, wait_ready=True)
 
             # If not connected
-            if not (self.vehicle):
+            if not self.vehicle:
                 exit("Can not connect to Vehicle\nPlease check your connection.")
 
             # If connected well!
             else:
 
-                self.thread = Thread(target=self.run, daemon=True)
+                self.thread = Thread(target=self._run_, daemon=True)
                 self.thread.start()
 
                 print("Connected\n-- System status --\n %s" % self.vehicle.system_status.state)
@@ -49,7 +45,7 @@ class drone(Thread):
         except Exception as e:
             exit("error occured while connecting to vehicle :\n %s" % e)
 
-    def run(self) -> None:
+    def _run_(self) -> None:
         """
         Run every second with Thread
         :return:
@@ -70,12 +66,32 @@ class drone(Thread):
         self.altitude = self.vehicle.location.global_relative_frame.alt
         self.lat = self.vehicle.location.global_frame.lat
         self.lon = self.vehicle.location.global_frame.lon
-    
-    def move_velo(self,x,t,z):
+
+    def move_velo(self, vx, vy, vz, yaw=0, yaw_rate=0):
         """
         Move the drone based velocity
+        v[m/s]
         """
-        pass
+        # Remember: vz is positive downward!!!
+        # http://ardupilot.org/dev/docs/copter-commands-in-guided-mode.html
+        #
+        # Bitmask to indicate which dimensions should be ignored by the vehicle
+        # (a value of 0b0000000000000000 or 0b0000001000000000 indicates that
+        # none of the setpoint dimensions should be ignored). Mapping:
+        # bit 1: x,  bit 2: y,  bit 3: z,
+        # bit 4: vx, bit 5: vy, bit 6: vz,
+        # bit 7: ax, bit 8: ay, bit 9:
+        msg = self.vehicle.message_factory.set_position_target_local_ned_encode(
+            0,
+            0, 0,
+            mavutil.mavlink.MAV_FRAME_BODY_NED,
+            0b0000111111000111,  # -- BITMASK -> Consider only the velocities
+            0, 0, 0,  # -- POSITION
+            vx, vy, vz,  # -- VELOCITY
+            0, 0, 0,  # -- ACCELERATIONS
+            yaw, yaw_rate)
+        self.vehicle.send_mavlink(msg)
+        self.vehicle.flush()
 
     def get_gps(self) -> Tuple[float, float]:
         """
@@ -118,7 +134,7 @@ class drone(Thread):
     def show_debug(self) -> None:
         print(f"lat {self.get_gps()[0]}, lng {self.get_gps()[1]} , alt : {self.altitude}")
 
-    def RTL(self,reason=None) -> bool:
+    def RTL(self, reason=None) -> bool:
         """
         Run Mode RTL
         :return:
@@ -142,7 +158,7 @@ class drone(Thread):
         print("Disconnect the vehicle.")
         self.vehicle.close()
 
-    def LAND(self):
+    def land(self):
         self.vehicle.mode = VehicleMode("LAND")
 
     def mission(self, start_altitude=altitude) -> bool:
@@ -195,7 +211,7 @@ class drone(Thread):
         The algorithm is relatively accurate over small distances (10m within 1km) except close to the poles.
 
         For more information see:
-        http://gis.stackexchange.com/questions/2951/algorithm-for-offsetting-a-latitude-longitude-by-some-amount-of-meters
+        https://gis.stackexchange.com/questions/2951/algorithm-for-offsetting-a-latitude-longitude-by-some-amount-of-meters
         """
         earth_radius = 6378137.0  # Radius of "spherical" earth
         # Coordinate offsets in radians
@@ -266,7 +282,7 @@ if __name__ == "__main__":
         point3 = LocationGlobalRelative(-35.36334282, 149.16522457, 5)
 
         # Update the Mission
-        vehicle.update_mission(point1, point2,point3)
+        vehicle.update_mission(point1, point2, point3)
 
         print(vehicle.takeoff(10))
         if vehicle.mission():
