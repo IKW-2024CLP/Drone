@@ -8,6 +8,8 @@ if __name__ == '__main__':
     # TODO:
     #   Test the move based velocity code.
     #   If you can, try move with image sensors.(e.g. Camera with aruco)
-    vehicle.takeoff()
+    if vehicle.altitude < 2:
+        vehicle.takeoff()
     print("x = 1")
-    vehicle.move_velo(1,0,0)
+    print(f"current yaw : {vehicle.yaw}")
+    vehicle.move_velo(0,0,0,0.78,0)

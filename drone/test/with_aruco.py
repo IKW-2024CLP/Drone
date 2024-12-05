@@ -63,28 +63,39 @@ def cam(cap, width, height) -> Tuple[int, int]:
     cv2.imshow('ArUco Marker Detection', frame)
     return x, y
 
+def value_mapping(x, in_min, in_max, out_min, out_max):
+    return (x - in_min) * (out_max - out_min) / (in_max - in_min) + out_min
 
 if __name__ == '__main__':
     vehicle = None
     try:
         vehicle = drone()
+        if vehicle.altitude < 2:
+            vehicle.takeoff()
     except Exception as e:
         print("Connection error\n", e)
     finally:
         cap = cv2.VideoCapture(0)
         width = cap.get(cv2.CAP_PROP_FRAME_WIDTH)
         height = cap.get(cv2.CAP_PROP_FRAME_HEIGHT)
+        print(f" W : {width},H: {height}")
+        half_width = width / 2
+        half_height = height / 2
 
+        # FIXME:
+        _yaw = 0.01
         while True:
             x, y = cam(cap, int(width), int(height))
 
-            # 50보다 멀리 있을 때
+            # 중앙으로부터 50보다 멀리 있을 때
             #   2차함수 방적식을 따르며 접근해보기.
             if vehicle is not None:
                 if 50 < abs(x) < 500:
-                    vehicle.move_velo(x / 7.2, y / 7.2, 0)
+                    vehicle.move_velo(value_mapping(y,-half_height,half_height,-5,5), 0, 0,value_mapping(x,-half_width,half_width, -_yaw,_yaw))
+                    print(f"drone move forward :{value_mapping(y,-half_height,half_height,-5,5)}m/s && rotate : {value_mapping(x,-half_width,half_width,-_yaw,_yaw)}")
                 elif 50 < abs(y) < 500:
-                    vehicle.move_velo(x / 7.2, y / 7.2, 0)
+                    vehicle.move_velo(value_mapping(y,-half_height,half_height,-5,5), 0, 0,value_mapping(x,-half_width,half_width, -_yaw,_yaw))
+                    print(f"drone move forward :{value_mapping(y,-half_height,half_height,-5,5)}m/s && rotate : {value_mapping(x,-half_width,half_width,-_yaw,_yaw)}")
             else:
                 if 50 < abs(y) < 500:
                     print(f"{x / 7.2:.1f}, {y / 7.2:.1f}")
