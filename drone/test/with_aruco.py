@@ -66,10 +66,17 @@ def cam(cap, width, height) -> Tuple[int, int]:
 def value_mapping(x, in_min, in_max, out_min, out_max):
     return (x - in_min) * (out_max - out_min) / (in_max - in_min) + out_min
 
+import sys
+
 if __name__ == '__main__':
+    args = sys.argv
+    if len(args) > 0:
+        port=str(args[1])
+    else:
+        port=None
     vehicle = None
     try:
-        vehicle = drone()
+        vehicle = drone(port)
         if vehicle.altitude < 2:
             vehicle.takeoff()
     except Exception as e:
@@ -98,9 +105,9 @@ if __name__ == '__main__':
                     print(f"drone move forward :{value_mapping(y,-half_height,half_height,-5,5)}m/s && rotate : {value_mapping(x,-half_width,half_width,-_yaw,_yaw)}")
             else:
                 if 50 < abs(y) < 500:
-                    print(f"{x / 7.2:.1f}, {y / 7.2:.1f}")
+                    print(f"drone move forward :{value_mapping(y,-half_height,half_height,-5,5)}m/s && rotate : {value_mapping(x,-half_width,half_width,-_yaw,_yaw)}")
                 elif 50 < abs(y) < 500:
-                    print(f"{x / 7.2:.1f}, {y / 7.2:.1f}")
+                    print(f"drone move forward :{value_mapping(y,-half_height,half_height,-5,5)}m/s && rotate : {value_mapping(x,-half_width,half_width,-_yaw,_yaw)}")
 
             # 'q' to EXIT.
             if cv2.waitKey(1) & 0xFF == ord('q'):
