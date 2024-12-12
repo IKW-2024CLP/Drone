@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 from drone.drone import *
 import cv2
 from cv2 import aruco
